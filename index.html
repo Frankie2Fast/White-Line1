@@ -192,6 +192,34 @@ footer { background: var(--black); border-top: 1px solid rgba(201,168,76,0.1); p
 
 .reveal { opacity: 0; transform: translateY(40px); transition: opacity 0.8s ease, transform 0.8s ease; }
 .reveal.visible { opacity: 1; transform: translateY(0); }
+
+/* Before & After Comparison Section */
+.transformations { background: var(--black-3); }
+.ba-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+.ba-card { border: 1px solid rgba(201,168,76,0.12); background: var(--black-2); overflow: hidden; }
+.ba-slider { position: relative; overflow: hidden; cursor: ew-resize; user-select: none; aspect-ratio: 3/4; }
+.ba-before, .ba-after { position: absolute; inset: 0; }
+.ba-before img, .ba-after img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.ba-after { clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%); }
+.ba-handle { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); width: 2px; background: var(--gold); pointer-events: none; z-index: 2; }
+.ba-handle-btn {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--gold); display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 3px rgba(201,168,76,0.3);
+}
+.ba-handle-btn svg { width: 18px; height: 18px; fill: var(--black); }
+.ba-labels { display: flex; justify-content: space-between; padding: 0.75rem 1.2rem; background: rgba(0,0,0,0.6); position: absolute; bottom: 0; left: 0; right: 0; z-index: 2; pointer-events: none; }
+.ba-labels span { font-size: 0.6rem; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 500; }
+.ba-label-before { color: rgba(245,240,232,0.6); }
+.ba-label-after { color: var(--gold); }
+.ba-caption { padding: 1.1rem 1.4rem; border-top: 1px solid rgba(201,168,76,0.1); }
+.ba-caption h3 { font-family: 'Cormorant Garamond', serif; font-size: 1.15rem; font-weight: 400; color: var(--white); margin-bottom: 0.25rem; }
+.ba-caption p { font-size: 0.65rem; color: var(--gray); letter-spacing: 0.12em; text-transform: uppercase; }
+@media (max-width: 900px) {
+  .ba-grid { grid-template-columns: 1fr; max-width: 480px; margin: 0 auto; }
+}
 </style>
 </head>
 <body>
@@ -202,6 +230,7 @@ footer { background: var(--black); border-top: 1px solid rgba(201,168,76,0.1); p
     <li><a href="#about">About</a></li>
     <li><a href="#services">Services</a></li>
     <li><a href="#gallery">Gallery</a></li>
+    <li><a href="#transformations">Before &amp; After</a></li>
     <li><a href="#booking">Book Now</a></li>
     <li><a href="#contact">Contact</a></li>
   </ul>
@@ -346,6 +375,99 @@ footer { background: var(--black); border-top: 1px solid rgba(201,168,76,0.1); p
   </div>
 </section>
 
+<section class="transformations" id="transformations">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="section-tag">The Difference</span>
+      <h2 class="section-title">Before &amp; <em>After</em></h2>
+    </div>
+    <div class="ba-grid reveal">
+
+      <!-- Pair 1: Driver Floor Mat -->
+      <div class="ba-card">
+        <div class="ba-slider" data-ba>
+          <div class="ba-before">
+            <img src="images/before1.jpg" alt="Driver floor mat before detailing"/>
+          </div>
+          <div class="ba-after">
+            <img src="images/after1.jpg" alt="Driver floor mat after detailing"/>
+          </div>
+          <div class="ba-handle">
+            <div class="ba-handle-btn">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 5l-7 7 7 7M16 5l7 7-7 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+          <div class="ba-labels">
+            <span class="ba-label-before">Before</span>
+            <span class="ba-label-after">After</span>
+          </div>
+        </div>
+        <div class="ba-caption">
+          <h3>Driver Floor Mat</h3>
+          <p>Deep clean &amp; rubber mat restoration</p>
+        </div>
+      </div>
+
+      <!-- Pair 2: Rear Cargo Area -->
+      <div class="ba-card">
+        <div class="ba-slider" data-ba>
+          <div class="ba-before">
+            <img src="images/before2.jpg" alt="Rear cargo area before detailing"/>
+          </div>
+          <div class="ba-after">
+            <img src="images/after2.jpg" alt="Rear cargo area after detailing"/>
+          </div>
+          <div class="ba-handle">
+            <div class="ba-handle-btn">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 5l-7 7 7 7M16 5l7 7-7 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+          <div class="ba-labels">
+            <span class="ba-label-before">Before</span>
+            <span class="ba-label-after">After</span>
+          </div>
+        </div>
+        <div class="ba-caption">
+          <h3>Rear Cargo Area</h3>
+          <p>Full interior vacuum &amp; steam clean</p>
+        </div>
+      </div>
+
+      <!-- Pair 3: Interior Floor -->
+      <div class="ba-card">
+        <div class="ba-slider" data-ba>
+          <div class="ba-before">
+            <img src="images/before3.jpg" alt="Interior floor before detailing"/>
+          </div>
+          <div class="ba-after">
+            <img src="images/after3.jpg" alt="Interior floor after detailing"/>
+          </div>
+          <div class="ba-handle">
+            <div class="ba-handle-btn">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 5l-7 7 7 7M16 5l7 7-7 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+          <div class="ba-labels">
+            <span class="ba-label-before">Before</span>
+            <span class="ba-label-after">After</span>
+          </div>
+        </div>
+        <div class="ba-caption">
+          <h3>Interior Floor</h3>
+          <p>Carpet extraction &amp; deep vacuum</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
 <section class="booking" id="booking">
   <div class="container">
     <div class="section-header reveal">
@@ -483,6 +605,26 @@ reveals.forEach(el => observer.observe(el));
 window.addEventListener('scroll', () => {
   const nav = document.getElementById('navbar');
   nav.style.padding = window.scrollY > 80 ? '0.8rem 3rem' : '1.2rem 3rem';
+});
+
+// Before & After sliders
+document.querySelectorAll('[data-ba]').forEach(slider => {
+  let dragging = false;
+
+  function setPosition(x) {
+    const rect = slider.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(100, ((x - rect.left) / rect.width) * 100));
+    slider.querySelector('.ba-after').style.clipPath =
+      `polygon(${pct}% 0, 100% 0, 100% 100%, ${pct}% 100%)`;
+    slider.querySelector('.ba-handle').style.left = pct + '%';
+  }
+
+  slider.addEventListener('mousedown', e => { dragging = true; setPosition(e.clientX); e.preventDefault(); });
+  slider.addEventListener('touchstart', e => { dragging = true; setPosition(e.touches[0].clientX); }, { passive: true });
+  document.addEventListener('mousemove', e => { if (dragging) setPosition(e.clientX); });
+  document.addEventListener('touchmove', e => { if (dragging) setPosition(e.touches[0].clientX); }, { passive: true });
+  document.addEventListener('mouseup', () => { dragging = false; });
+  document.addEventListener('touchend', () => { dragging = false; });
 });
 </script>
 </body>
