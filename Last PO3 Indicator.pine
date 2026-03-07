@@ -1,0 +1,99 @@
+//@version=5
+indicator("Last PO3", overlay=true, max_boxes_count=10, max_lines_count=20)
+
+// ══════════════════════════════════════════════════════════════════
+//  Last PO3 – Live 30m / 1H / 4H candle display (right of price)
+//  Updates on every tick. Best used on a chart ≤ 15m.
+// ══════════════════════════════════════════════════════════════════
+
+// ── Inputs ────────────────────────────────────────────────────────
+i_offset  = input.int(15, "Right Offset (bars)",   minval=1, maxval=100)
+i_width   = input.int(6,  "Candle Width (bars)",    minval=2, maxval=50)
+i_spacing = input.int(4,  "Candle Spacing (bars)",  minval=1, maxval=30)
+i_bull    = input.color(color.new(#26a69a, 0), "Bullish Color")
+i_bear    = input.color(color.new(#ef5350, 0), "Bearish Color")
+i_wick    = input.color(color.gray,              "Wick Color")
+
+// ── Multi-timeframe OHLC ──────────────────────────────────────────
+[o30,  h30,  lo30,  c30]  = request.security(syminfo.tickerid, "30",  [open, high, low, close])
+[o60,  h60,  lo60,  c60]  = request.security(syminfo.tickerid, "60",  [open, high, low, close])
+[o240, h240, lo240, c240] = request.security(syminfo.tickerid, "240", [open, high, low, close])
+
+// ── Persistent object handles ─────────────────────────────────────
+var box   b30    = na
+var box   b60    = na
+var box   b240   = na
+var line  wu30   = na
+var line  wd30   = na
+var line  wu60   = na
+var line  wd60   = na
+var line  wu240  = na
+var line  wd240  = na
+var label lbl30  = na
+var label lbl60  = na
+var label lbl240 = na
+
+// ── Redraw on every tick of the live bar ─────────────────────────
+if barstate.islast
+
+    // Slot A → 30m
+    int x1a = bar_index + i_offset
+    int x2a = x1a + i_width
+    int xma  = x1a + i_width / 2
+
+    // Slot B → 1H
+    int x1b = x2a + i_spacing
+    int x2b = x1b + i_width
+    int xmb  = x1b + i_width / 2
+
+    // Slot C → 4H
+    int x1c = x2b + i_spacing
+    int x2c = x1c + i_width
+    int xmc  = x1c + i_width / 2
+
+    // Remove stale drawings
+    box.delete(b30)
+    box.delete(b60)
+    box.delete(b240)
+    line.delete(wu30)
+    line.delete(wd30)
+    line.delete(wu60)
+    line.delete(wd60)
+    line.delete(wu240)
+    line.delete(wd240)
+    label.delete(lbl30)
+    label.delete(lbl60)
+    label.delete(lbl240)
+
+    // ── 30m ───────────────────────────────────────────────────────
+    col30  = c30  >= o30  ? i_bull : i_bear
+    top30  = math.max(o30,  c30)
+    bot30  = math.min(o30,  c30)
+    b30   := box.new(x1a, top30, x2a, bot30, bgcolor=col30, border_color=col30)
+    wu30  := line.new(xma, h30,   xma, top30, color=i_wick, width=2)
+    wd30  := line.new(xma, bot30, xma, lo30,  color=i_wick, width=2)
+    lbl30 := label.new(xma, lo30, "30m",
+                 style=label.style_label_up,
+                 color=col30, textcolor=color.white, size=size.normal)
+
+    // ── 1H ────────────────────────────────────────────────────────
+    col60  = c60  >= o60  ? i_bull : i_bear
+    top60  = math.max(o60,  c60)
+    bot60  = math.min(o60,  c60)
+    b60   := box.new(x1b, top60, x2b, bot60, bgcolor=col60, border_color=col60)
+    wu60  := line.new(xmb, h60,   xmb, top60, color=i_wick, width=2)
+    wd60  := line.new(xmb, bot60, xmb, lo60,  color=i_wick, width=2)
+    lbl60 := label.new(xmb, lo60, "1H",
+                 style=label.style_label_up,
+                 color=col60, textcolor=color.white, size=size.normal)
+
+    // ── 4H ────────────────────────────────────────────────────────
+    col240  = c240 >= o240 ? i_bull : i_bear
+    top240  = math.max(o240, c240)
+    bot240  = math.min(o240, c240)
+    b240  := box.new(x1c, top240, x2c, bot240, bgcolor=col240, border_color=col240)
+    wu240 := line.new(xmc, h240,   xmc, top240, color=i_wick, width=2)
+    wd240 := line.new(xmc, bot240, xmc, lo240,  color=i_wick, width=2)
+    lbl240:= label.new(xmc, lo240, "4H",
+                 style=label.style_label_up,
+                 color=col240, textcolor=color.white, size=size.normal)

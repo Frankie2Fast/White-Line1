@@ -1,0 +1,271 @@
+//@version=5
+indicator("OB & Rejection Blocks [Smart Money]", overlay=true, max_boxes_count=200, max_lines_count=200, max_labels_count=200)
+
+// ─────────────────────────────────────────────
+//  SETTINGS
+// ─────────────────────────────────────────────
+grp1 = "Order Block Settings"
+showOB         = input.bool(true,  "Show Order Blocks",            group=grp1)
+obBullColor    = input.color(color.new(#00e676, 75), "Bullish OB Color",  group=grp1)
+obBearColor    = input.color(color.new(#ff1744, 75), "Bearish OB Color",  group=grp1)
+obBorderBull   = input.color(color.new(#00e676, 0),  "Bullish OB Border", group=grp1)
+obBorderBear   = input.color(color.new(#ff1744, 0),  "Bearish OB Border", group=grp1)
+obLookback     = input.int(50, "OB Lookback Bars", minval=10, maxval=200, group=grp1)
+
+grp2 = "Rejection Block Settings"
+showRB         = input.bool(true,  "Show Rejection Blocks",         group=grp2)
+rbBullColor    = input.color(color.new(#29b6f6, 75), "Bullish RB Color",  group=grp2)
+rbBearColor    = input.color(color.new(#ff9800, 75), "Bearish RB Color",  group=grp2)
+rbBorderBull   = input.color(color.new(#29b6f6, 0),  "Bullish RB Border", group=grp2)
+rbBorderBear   = input.color(color.new(#ff9800, 0),  "Bearish RB Border", group=grp2)
+
+grp3 = "Structure Settings"
+swingLen       = input.int(5, "Swing High/Low Length", minval=2, maxval=20, group=grp3)
+showLabels     = input.bool(true, "Show Labels", group=grp3)
+labelSize      = input.string("small", "Label Size", options=["tiny","small","normal"], group=grp3)
+
+// ─────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────
+lsize = labelSize == "tiny" ? size.tiny : labelSize == "small" ? size.small : size.normal
+
+// Swing High / Low detection (3-candle body-based)
+isSwingHigh(len) =>
+    result = true
+    for i = 1 to len
+        if high[i] < high[len] or high[len + i] < high[len]
+            result := false
+    result
+
+isSwingLow(len) =>
+    result = true
+    for i = 1 to len
+        if low[i] > low[len] or low[len + i] > low[len]
+            result := false
+    result
+
+// Body close break (no wicks) — bearish break: close < prev swing low body
+bodyBreakDown(swingLowPrice) => close < swingLowPrice
+bodyBreakUp(swingHighPrice)  => close > swingHighPrice
+
+// ─────────────────────────────────────────────
+//  ORDER BLOCK DETECTION
+//  OB = closing price of the candle BEFORE the 
+//  manipulation candle (the last opposing candle
+//  before the impulsive move)
+// ─────────────────────────────────────────────
+
+// Track arrays for active OBs
+var ob_bull_top   = array.new_float(0)
+var ob_bull_bot   = array.new_float(0)
+var ob_bull_start = array.new_int(0)
+var ob_bull_box   = array.new_box(0)
+
+var ob_bear_top   = array.new_float(0)
+var ob_bear_bot   = array.new_float(0)
+var ob_bear_start = array.new_int(0)
+var ob_bear_box   = array.new_box(0)
+
+// Detect bearish OB: last bullish candle before a significant bearish impulse
+// The OB price level = close of that bullish candle
+isBearishImpulse = close[1] < open[1] and close[2] < open[2] and close[1] < low[3]
+isBullishPrevCandle = close[3] > open[3]
+
+// Detect bullish OB: last bearish candle before a significant bullish impulse  
+isBullishImpulse = close[1] > open[1] and close[2] > open[2] and close[1] > high[3]
+isBearishPrevCandle = close[3] < open[3]
+
+if showOB
+    // Bearish OB formed
+    if isBearishImpulse and isBullishPrevCandle
+        ob_level = close[3]  // closing price of the last bullish candle
+        box_top  = math.max(open[3], close[3])
+        box_bot  = ob_level - syminfo.mintick * 2
+        b = box.new(bar_index - 3, box_top, bar_index + obLookback, box_bot,
+             border_color=obBorderBear, bgcolor=obBearColor, border_width=1)
+        array.push(ob_bear_top,   box_top)
+        array.push(ob_bear_bot,   box_bot)
+        array.push(ob_bear_start, bar_index - 3)
+        array.push(ob_bear_box,   b)
+        if showLabels
+            label.new(bar_index - 3, box_top, "OB", 
+                 style=label.style_label_right, color=color.new(#ff1744,0),
+                 textcolor=color.white, size=lsize)
+
+    // Bullish OB formed
+    if isBullishImpulse and isBearishPrevCandle
+        ob_level = close[3]  // closing price of the last bearish candle
+        box_top  = ob_level + syminfo.mintick * 2
+        box_bot  = math.min(open[3], close[3])
+        b = box.new(bar_index - 3, box_top, bar_index + obLookback, box_bot,
+             border_color=obBorderBull, bgcolor=obBullColor, border_width=1)
+        array.push(ob_bull_top,   box_top)
+        array.push(ob_bull_bot,   box_bot)
+        array.push(ob_bull_start, bar_index - 3)
+        array.push(ob_bull_box,   b)
+        if showLabels
+            label.new(bar_index - 3, box_bot, "OB", 
+                 style=label.style_label_right, color=color.new(#00e676,0),
+                 textcolor=color.white, size=lsize)
+
+// ─────────────────────────────────────────────
+//  MITIGATED OB REMOVAL
+//  If price closes INTO the OB zone → remove it
+// ─────────────────────────────────────────────
+if showOB
+    // Check bearish OBs — mitigated when price closes ABOVE the OB (back into supply)
+    i = 0
+    while i < array.size(ob_bear_box)
+        top = array.get(ob_bear_top, i)
+        bot = array.get(ob_bear_bot, i)
+        b   = array.get(ob_bear_box, i)
+        // Mitigated = price has tapped into the zone (close touches or enters)
+        if close >= bot and close <= top or high >= bot
+            box.delete(b)
+            array.remove(ob_bear_top,   i)
+            array.remove(ob_bear_bot,   i)
+            array.remove(ob_bear_start, i)
+            array.remove(ob_bear_box,   i)
+        else
+            // Extend box to current bar
+            box.set_right(b, bar_index + 5)
+            i += 1
+
+    // Check bullish OBs — mitigated when price closes BELOW the OB
+    j = 0
+    while j < array.size(ob_bull_box)
+        top = array.get(ob_bull_top, j)
+        bot = array.get(ob_bull_bot, j)
+        b   = array.get(ob_bull_box, j)
+        if close <= top and close >= bot or low <= top
+            box.delete(b)
+            array.remove(ob_bull_top,   j)
+            array.remove(ob_bull_bot,   j)
+            array.remove(ob_bull_start, j)
+            array.remove(ob_bull_box,   j)
+        else
+            box.set_right(b, bar_index + 5)
+            j += 1
+
+// ─────────────────────────────────────────────
+//  REJECTION BLOCK DETECTION
+//  A/V formations on line chart = closing price 
+//  levels that acted as resistance/support
+//  Resistance (A-form): high point between two 
+//  lower closes
+//  Support (V-form): low point between two 
+//  higher closes
+// ─────────────────────────────────────────────
+
+var rb_bull_level = array.new_float(0)
+var rb_bull_bar   = array.new_int(0)
+var rb_bull_line  = array.new_line(0)
+
+var rb_bear_level = array.new_float(0)
+var rb_bear_bar   = array.new_int(0)
+var rb_bear_line  = array.new_line(0)
+
+// A-formation (Bearish Rejection Block / Resistance)
+// Close[swingLen] is higher than closes on both sides
+isAFormation = true
+for k = 1 to swingLen
+    if close[swingLen] <= close[swingLen - k] or close[swingLen] <= close[swingLen + k]
+        isAFormation := false
+
+// V-formation (Bullish Rejection Block / Support)
+isVFormation = true
+for k = 1 to swingLen
+    if close[swingLen] >= close[swingLen - k] or close[swingLen] >= close[swingLen + k]
+        isVFormation := false
+
+if showRB
+    // Bearish Rejection Block (A-form = resistance)
+    if isAFormation
+        lvl = close[swingLen]
+        ln = line.new(bar_index - swingLen, lvl, bar_index + obLookback, lvl,
+             color=rbBorderBear, width=1, style=line.style_dashed)
+        array.push(rb_bear_level, lvl)
+        array.push(rb_bear_bar,   bar_index - swingLen)
+        array.push(rb_bear_line,  ln)
+        if showLabels
+            label.new(bar_index - swingLen, lvl, "RB", 
+                 style=label.style_label_right, color=color.new(#ff9800,0),
+                 textcolor=color.white, size=lsize)
+
+    // Bullish Rejection Block (V-form = support)
+    if isVFormation
+        lvl = close[swingLen]
+        ln = line.new(bar_index - swingLen, lvl, bar_index + obLookback, lvl,
+             color=rbBorderBull, width=1, style=line.style_dashed)
+        array.push(rb_bull_level, lvl)
+        array.push(rb_bull_bar,   bar_index - swingLen)
+        array.push(rb_bull_line,  ln)
+        if showLabels
+            label.new(bar_index - swingLen, lvl, "RB", 
+                 style=label.style_label_right, color=color.new(#29b6f6,0),
+                 textcolor=color.white, size=lsize)
+
+// ─────────────────────────────────────────────
+//  MITIGATED RB REMOVAL
+//  If price closes through the level → remove it
+// ─────────────────────────────────────────────
+if showRB
+    // Bearish RB — mitigated when price closes above the resistance level
+    ii = 0
+    while ii < array.size(rb_bear_line)
+        lvl = array.get(rb_bear_level, ii)
+        ln  = array.get(rb_bear_line,  ii)
+        if close > lvl
+            line.delete(ln)
+            array.remove(rb_bear_level, ii)
+            array.remove(rb_bear_bar,   ii)
+            array.remove(rb_bear_line,  ii)
+        else
+            line.set_x2(ln, bar_index + 5)
+            ii += 1
+
+    // Bullish RB — mitigated when price closes below the support level
+    jj = 0
+    while jj < array.size(rb_bull_line)
+        lvl = array.get(rb_bull_level, jj)
+        ln  = array.get(rb_bull_line,  jj)
+        if close < lvl
+            line.delete(ln)
+            array.remove(rb_bull_level, jj)
+            array.remove(rb_bull_bar,   jj)
+            array.remove(rb_bull_line,  jj)
+        else
+            line.set_x2(ln, bar_index + 5)
+            jj += 1
+
+// ─────────────────────────────────────────────
+//  STRONG HIGH / LOW MARKERS
+//  Liquidity taken + body break of structure
+// ─────────────────────────────────────────────
+grp4 = "Strong High/Low"
+showSHL = input.bool(true, "Show Strong High/Low", group=grp4)
+
+swingH = ta.pivothigh(high, swingLen, swingLen)
+swingL = ta.pivotlow(low,  swingLen, swingLen)
+
+// Strong High: swing high where a lower swing low confirmed structure break
+var float lastSwingHigh = na
+var float lastSwingLow  = na
+
+if not na(swingH)
+    lastSwingHigh := swingH
+if not na(swingL)
+    lastSwingLow  := swingL
+
+// Body break up = bullish structural break (forms Strong Low below)
+bodyBreakBull = not na(lastSwingHigh) and close > lastSwingHigh and close[1] > open[1]
+// Body break down = bearish structural break (forms Strong High above)  
+bodyBreakBear = not na(lastSwingLow)  and close < lastSwingLow  and close[1] < open[1]
+
+if showSHL
+    if bodyBreakBull
+        label.new(bar_index, low, "SL ↑", style=label.style_label_up,
+             color=color.new(#00e676, 0), textcolor=color.white, size=lsize)
+    if bodyBreakBear
+        label.new(bar_index, high, "SH ↓", style=label.style_label_down,
+             color=color.new(#ff1744, 0), textcolor=color.white, size=lsize)

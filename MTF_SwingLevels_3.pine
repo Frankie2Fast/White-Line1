@@ -1,0 +1,152 @@
+//@version=6
+indicator("MTF Closest Swing Levels (1H / 15m / 5m)", overlay=true, max_lines_count=50, max_labels_count=50)
+
+// ─────────────────────────────────────────────
+// INPUTS
+// ─────────────────────────────────────────────
+lookback_1h  = input.int(10, "1H Lookback",  minval=3, maxval=50, group="Lookback")
+lookback_15m = input.int(10, "15m Lookback", minval=3, maxval=50, group="Lookback")
+lookback_5m  = input.int(10, "5m Lookback",  minval=3, maxval=50, group="Lookback")
+show_1h      = input.bool(true, "Show 1H",   group="Visibility")
+show_15m     = input.bool(true, "Show 15m",  group="Visibility")
+show_5m      = input.bool(true, "Show 5m",   group="Visibility")
+col_1h       = input.color(color.new(#FF9800, 0), "1H Color",  group="Colors")
+col_15m      = input.color(color.new(#2196F3, 0), "15m Color", group="Colors")
+col_5m       = input.color(color.new(#4CAF50, 0), "5m Color",  group="Colors")
+
+// ─────────────────────────────────────────────
+// CLOSEST UNBROKEN LEVEL FUNCTIONS
+// Swing high: lowest pivot HIGH still above close  → nearest resistance
+// Swing low:  highest pivot LOW still below close  → nearest support
+// When broken (close above SH / close below SL), auto-skips to next
+// Returns [price, bar_index_of_pivot]
+// ─────────────────────────────────────────────
+f_closest_sh(lb) =>
+    best_price = float(na)
+    best_bar   = int(na)
+    for i = lb to 300
+        ph     = ta.pivothigh(high, lb, lb)[i - lb]
+        ph_bar = bar_index - i
+        if not na(ph) and ph > close
+            if na(best_price) or ph < best_price
+                best_price := ph
+                best_bar   := ph_bar
+    [best_price, best_bar]
+
+f_closest_sl(lb) =>
+    best_price = float(na)
+    best_bar   = int(na)
+    for i = lb to 300
+        pl     = ta.pivotlow(low, lb, lb)[i - lb]
+        pl_bar = bar_index - i
+        if not na(pl) and pl < close
+            if na(best_price) or pl > best_price
+                best_price := pl
+                best_bar   := pl_bar
+    [best_price, best_bar]
+
+// ─────────────────────────────────────────────
+// FETCH FROM EACH TIMEFRAME
+// ─────────────────────────────────────────────
+[h1_sh_p,  h1_sh_b]  = request.security("", "60", f_closest_sh(lookback_1h),  lookahead=barmerge.lookahead_off)
+[h1_sl_p,  h1_sl_b]  = request.security("", "60", f_closest_sl(lookback_1h),  lookahead=barmerge.lookahead_off)
+[m15_sh_p, m15_sh_b] = request.security("", "15", f_closest_sh(lookback_15m), lookahead=barmerge.lookahead_off)
+[m15_sl_p, m15_sl_b] = request.security("", "15", f_closest_sl(lookback_15m), lookahead=barmerge.lookahead_off)
+[m5_sh_p,  m5_sh_b]  = request.security("", "5",  f_closest_sh(lookback_5m),  lookahead=barmerge.lookahead_off)
+[m5_sl_p,  m5_sl_b]  = request.security("", "5",  f_closest_sl(lookback_5m),  lookahead=barmerge.lookahead_off)
+
+// ─────────────────────────────────────────────
+// PERSISTENT VARS
+// ─────────────────────────────────────────────
+var line  l_h1_sh   = line(na)
+var line  l_h1_sl   = line(na)
+var line  l_m15_sh  = line(na)
+var line  l_m15_sl  = line(na)
+var line  l_m5_sh   = line(na)
+var line  l_m5_sl   = line(na)
+var label lb_h1_sh  = label(na)
+var label lb_h1_sl  = label(na)
+var label lb_m15_sh = label(na)
+var label lb_m15_sl = label(na)
+var label lb_m5_sh  = label(na)
+var label lb_m5_sl  = label(na)
+
+// Track last drawn pivot bar to detect when level changes
+var int last_h1_sh_b  = na
+var int last_h1_sl_b  = na
+var int last_m15_sh_b = na
+var int last_m15_sl_b = na
+var int last_m5_sh_b  = na
+var int last_m5_sl_b  = na
+
+// ─────────────────────────────────────────────
+// DRAW HELPERS
+// Line starts FROM the pivot bar, extends right
+// Only redraws when the pivot changes (broken → next level)
+// ─────────────────────────────────────────────
+f_draw_level(ln, lbl, price, pivot_bar, last_bar, col, txt) =>
+    new_ln  = ln
+    new_lbl = lbl
+    new_last = last_bar
+    if not na(price) and pivot_bar != last_bar
+        // New level — delete old, draw fresh from pivot origin
+        line.delete(ln)
+        label.delete(lbl)
+        new_ln := line.new(
+             x1     = pivot_bar,
+             y1     = price,
+             x2     = pivot_bar + 1,
+             y2     = price,
+             color  = col,
+             width  = 2,
+             style  = line.style_dotted,
+             extend = extend.right)
+        new_lbl := label.new(
+             x         = pivot_bar,
+             y         = price,
+             text      = txt,
+             color     = color.new(col, 85),
+             textcolor = col,
+             style     = label.style_label_right,
+             size      = size.small)
+        new_last := pivot_bar
+    else if na(price)
+        line.delete(ln)
+        label.delete(lbl)
+        new_ln   := line(na)
+        new_lbl  := label(na)
+        new_last := int(na)
+    [new_ln, new_lbl, new_last]
+
+// ─────────────────────────────────────────────
+// UPDATE EVERY BAR
+// ─────────────────────────────────────────────
+if show_1h
+    [a, b, c] = f_draw_level(l_h1_sh,  lb_h1_sh,  h1_sh_p,  h1_sh_b,  last_h1_sh_b,  col_1h,  "1H SH")
+    l_h1_sh        := a
+    lb_h1_sh       := b
+    last_h1_sh_b   := c
+    [d, e, f] = f_draw_level(l_h1_sl,  lb_h1_sl,  h1_sl_p,  h1_sl_b,  last_h1_sl_b,  col_1h,  "1H SL")
+    l_h1_sl        := d
+    lb_h1_sl       := e
+    last_h1_sl_b   := f
+
+if show_15m
+    [a, b, c] = f_draw_level(l_m15_sh, lb_m15_sh, m15_sh_p, m15_sh_b, last_m15_sh_b, col_15m, "15m SH")
+    l_m15_sh       := a
+    lb_m15_sh      := b
+    last_m15_sh_b  := c
+    [d, e, f] = f_draw_level(l_m15_sl, lb_m15_sl, m15_sl_p, m15_sl_b, last_m15_sl_b, col_15m, "15m SL")
+    l_m15_sl       := d
+    lb_m15_sl      := e
+    last_m15_sl_b  := f
+
+if show_5m
+    [a, b, c] = f_draw_level(l_m5_sh,  lb_m5_sh,  m5_sh_p,  m5_sh_b,  last_m5_sh_b,  col_5m,  "5m SH")
+    l_m5_sh        := a
+    lb_m5_sh       := b
+    last_m5_sh_b   := c
+    [d, e, f] = f_draw_level(l_m5_sl,  lb_m5_sl,  m5_sl_p,  m5_sl_b,  last_m5_sl_b,  col_5m,  "5m SL")
+    l_m5_sl        := d
+    lb_m5_sl       := e
+    last_m5_sl_b   := f
